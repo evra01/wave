@@ -1,0 +1,31 @@
+name: Vérification Wave
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  verifier-paiements-wave:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Installer les dépendances
+        working-directory: wave-monitor
+        run: npm install
+
+      - name: Installer Chromium (Playwright)
+        working-directory: wave-monitor
+        run: npx playwright install --with-deps chromium
+
+      - name: Lancer une vérification
+        working-directory: wave-monitor
+        env:
+          SERVER_URL: ${{ secrets.SERVER_URL }}
+          MONITOR_TOKEN: ${{ secrets.MONITOR_TOKEN }}
+        run: node wave-monitor.js
