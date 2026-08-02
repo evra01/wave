@@ -1,0 +1,13 @@
+{
+  "name": "wave-monitor",
+  "version": "1.0.0",
+  "description": "Robot de surveillance des transactions Wave Business pour Maître de Maison",
+  "main": "wave-monitor.js",
+  "scripts": {
+    "login": "HEADLESS=false node wave-monitor.js --login",
+    "check": "node wave-monitor.js"
+  },
+  "dependencies": {
+    "playwright": "^1.47.0"
+  }
+}
