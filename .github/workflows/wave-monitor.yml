@@ -13,15 +13,18 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
+
       - name: Installer les dépendances
-        working-directory: wave-monitor
+        working-directory: wave-repo-complet/wave-monitor
         run: npm install
+
       - name: Installer Chromium (Playwright)
-        working-directory: wave-monitor
+        working-directory: wave-repo-complet/wave-monitor
         run: npx playwright install --with-deps chromium
+
       - name: Lancer une vérification
-        working-directory: wave-monitor
+        working-directory: wave-repo-complet/wave-monitor
         env:
           SERVER_URL: ${{ secrets.SERVER_URL }}
           MONITOR_TOKEN: ${{ secrets.MONITOR_TOKEN }}
