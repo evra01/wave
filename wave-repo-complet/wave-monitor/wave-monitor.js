@@ -18,7 +18,9 @@
    3. Lit les transactions reçues (montant, note/motif, date).
    4. Envoie ces transactions au serveur (POST /api/monitor/transactions-wave),
       qui rapproche automatiquement chaque transaction avec un paiement
-      "en attente" via le code MM-XXXXXX indiqué en note par le parent.
+      "en attente" via le numéro de téléphone de l'expéditeur, repéré dans
+      la description automatique Wave (pas de champ note/motif libre sur
+      cette interface).
    5. Renvoie la session (éventuellement renouvelée par Wave) au serveur
       (POST /api/monitor/session), pour le prochain passage.
 
@@ -71,7 +73,7 @@ const SERVER_URL = (process.env.SERVER_URL || "").replace(/\/+$/, "");
 const MONITOR_TOKEN = process.env.MONITOR_TOKEN || "";
 const HEADLESS = process.env.HEADLESS !== "false";
 const WAVE_LOGIN_URL = "https://business.wave.com/login";
-// À ADAPTER : URL réelle de la page listant les transactions reçues.
+// URL de la page listant les transactions reçues (validée : le robot y accède sans erreur).
 const WAVE_TRANSACTIONS_URL = "https://business.wave.com/transactions";
 
 if (!SERVER_URL || !MONITOR_TOKEN) {
@@ -124,31 +126,39 @@ async function modeConnexion() {
    À ADAPTER selon le vrai DOM — voir le README pour la marche à suivre. */
 async function extraireTransactions(page) {
   return page.evaluate(() => {
-    // À ADAPTER : sélecteur des lignes de transactions reçues (crédits).
-    const lignes = document.querySelectorAll('[data-testid="transaction-row"], .transaction-row, tr[data-transaction-id]');
+    // Vrai DOM Wave Business (tableau Material UI) : chaque ligne de transaction
+    // est un <tr> dans <tbody>, avec 4 colonnes utiles dans l'ordre :
+    // Date | Description | Montant | Identifiant de transaction.
+    const lignes = document.querySelectorAll("tbody.MuiTableBody-root tr");
     const resultats = [];
+
     lignes.forEach((ligne) => {
-      // À ADAPTER : ne garder que les paiements REÇUS (pas les envois/retraits/recharges).
-      const type = (ligne.getAttribute("data-type") || ligne.textContent || "").toLowerCase();
-      if (type.includes("envoyé") || type.includes("retrait") || type.includes("recharge")) return;
+      const cells = ligne.querySelectorAll("td");
+      if (cells.length < 4) return;
 
-      const id =
-        ligne.getAttribute("data-transaction-id") ||
-        ligne.getAttribute("data-id") ||
-        ligne.id ||
-        null;
-      const montantEl = ligne.querySelector('[data-testid="amount"], .amount, .transaction-amount');
-      const noteEl = ligne.querySelector('[data-testid="note"], .note, .transaction-note, .description');
-      const dateEl = ligne.querySelector('[data-testid="date"], .date, time');
+      const dateTexte = cells[0].textContent.trim(); // ex. "02/08/2026 10:42"
+      const description = cells[1].textContent.trim(); // ex. "Reçu de Aka Jacques 07 07 00 5219 par Diomandé Kilian"
+      const montantTexte = cells[2].textContent.trim(); // ex. "3.300F" (reçu) ou "-3.300F" (envoyé/payé)
+      const id = cells[3].textContent.trim(); // ex. "T_BLAMABB4PNHRGBOB"
 
-      const montant = montantEl ? montantEl.textContent.trim() : "";
-      const note = noteEl ? noteEl.textContent.trim() : "";
-      const dateAttr = dateEl ? dateEl.getAttribute("datetime") : null;
-      const dateISO = dateAttr || (dateEl ? dateEl.textContent.trim() : "");
+      // On ne garde que les paiements REÇUS : le montant ne commence pas par "-".
+      if (!montantTexte || montantTexte.trim().startsWith("-")) return;
+      if (!id) return;
 
-      if (!id || !montant) return;
-      resultats.push({ id, montant, note, dateISO });
+      // "02/08/2026 10:42" → ISO (JJ/MM/AAAA HH:mm)
+      let dateISO = dateTexte;
+      const m = dateTexte.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
+      if (m) dateISO = `${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:00`;
+
+      // Le tableau n'affiche pas de champ "note/motif" libre — Wave ne génère
+      // ici qu'une description automatique (nom/numéro de l'expéditeur), sans
+      // texte saisi par le payeur. Le code MM-XXXXXX ne peut donc pas être lu
+      // depuis cette liste ; on transmet quand même la description, au cas où
+      // le serveur y retrouverait un code (peu probable), et pour affichage
+      // en cas de rapprochement manuel.
+      resultats.push({ id, montant: montantTexte, note: description, dateISO });
     });
+
     return resultats;
   });
 }
