@@ -2,29 +2,23 @@ name: Vérification Wave
 
 on:
   schedule:
-    - cron: "* * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 jobs:
   verifier-paiements-wave:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    container: mcr.microsoft.com/playwright:v1.47.0-noble
+    timeout-minutes: 4
     concurrency:
       group: verification-wave
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
 
       - name: Installer les dépendances
         working-directory: wave-repo-complet/wave-monitor
         run: npm install
-
-      - name: Installer Chromium (Playwright)
-        working-directory: wave-repo-complet/wave-monitor
-        run: npx playwright install --with-deps chromium
 
       - name: Lancer une vérification
         working-directory: wave-repo-complet/wave-monitor
